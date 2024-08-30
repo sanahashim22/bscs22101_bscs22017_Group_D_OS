@@ -1,0 +1,4 @@
+{
+    "command": "upload",
+    "filename": "example.txt"
+}
