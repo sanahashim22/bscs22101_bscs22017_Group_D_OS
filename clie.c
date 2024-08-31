@@ -9,22 +9,14 @@
 
 int main()
 {
-    /*
-    WSADATA: A structure that contains information about the Windows Sockets implementation.
-SOCKET sock: A socket descriptor used to identify the socket.
-struct sockaddr_in server: A structure that holds the server's address and port information.
-message: The message to be sent to the server.
-*/
     WSADATA wsa;
     SOCKET sock;
     struct sockaddr_in server;
     char *message = "C:\\Users\\HP\\OneDrive\\Desktop\\Semester 5\\Operating System\\Git Repo\\bscs22101_bscs22017_Group_D_OS\\cmds.txt";
-    int server_addr_len = sizeof(server);
+    char server_response[BUFFER_SIZE] = {0};
+    char file_content[BUFFER_SIZE] = {0};
 
     // Initialize Winsock
-    /*WSAStartup: Initializes the Winsock library. The MAKEWORD(2,2) specifies the version of Winsock
-    to use (2.2 in this case).
-    If initialization fails, the program prints an error and exits.*/
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
     {
         printf("Failed. Error Code : %d", WSAGetLastError());
@@ -32,13 +24,6 @@ message: The message to be sent to the server.
     }
 
     // Create socket
-    /*
-    socket(): Creates a new socket using:
-AF_INET for IPv4 addresses.
-SOCK_STREAM for a stream socket (used for TCP).
-0 for the default protocol (TCP in this case).
-If socket creation fails, it prints an error, cleans up Winsock, and exits.
-*/
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET)
     {
         printf("Could not create socket : %d", WSAGetLastError());
@@ -46,20 +31,12 @@ If socket creation fails, it prints an error, cleans up Winsock, and exits.
         return 1;
     }
 
-    /*server.sin_family: Specifies the address family (AF_INET for IPv4).
-    server.sin_port: Specifies the port number, converted to network byte order using htons().
-    server.sin_addr.s_addr: Specifies the server's IP address (127.0.0.1 for localhost) converted to
-    network byte order using inet_addr().
-    */
+    // Setup server address structure
     server.sin_family = AF_INET;
     server.sin_port = htons(PORT);
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
 
     // Connect to server
-    /*
-    connect(): Attempts to establish a connection to the server using the provided server address and port.
-    If the connection fails, the program prints an error, closes the socket, cleans up Winsock, and exits.
-*/
     if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0)
     {
         printf("Connect failed with error code : %d", WSAGetLastError());
@@ -68,10 +45,7 @@ If socket creation fails, it prints an error, cleans up Winsock, and exits.
         return 1;
     }
 
-    // Send data
-    /*send(): Sends the message to the server.
-    If sending fails, it prints an error, closes the socket, cleans up Winsock, and exits.
-    If the message is successfully sent, it prints "Message sent."*/
+    // Send the command file path to the server
     if (send(sock, message, strlen(message), 0) < 0)
     {
         printf("Send failed with error code : %d", WSAGetLastError());
@@ -80,11 +54,42 @@ If socket creation fails, it prints an error, cleans up Winsock, and exits.
         return 1;
     }
 
-    printf("Message sent\n");
+    printf("File path sent to server.\n");
+
+    // Receive server response regarding disk space
+    int bytes_received = recv(sock, server_response, BUFFER_SIZE, 0);
+    if (bytes_received > 0)
+    {
+        server_response[bytes_received] = '\0';
+        printf("Server response: %s\n", server_response);
+
+        if (strstr(server_response, "Success") != NULL)
+        {
+            // Server is ready to receive the file content
+            printf("Enter the content for the file:\n");
+            fgets(file_content, BUFFER_SIZE, stdin);
+
+            // Send the file content to the server
+            if (send(sock, file_content, strlen(file_content), 0) < 0)
+            {
+                printf("Send failed with error code : %d", WSAGetLastError());
+            }
+            else
+            {
+                printf("File content sent to server.\n");
+            }
+        }
+        else
+        {
+            printf("Server could not process the file due to insufficient space.\n");
+        }
+    }
+    else
+    {
+        printf("Failed to receive response from server. Error code : %d\n", WSAGetLastError());
+    }
 
     // Cleanup
-    // closesocket(): Closes the socket, releasing the resources associated with it.
-    // WSACleanup(): Cleans up the Winsock library.
     closesocket(sock);
     WSACleanup();
 

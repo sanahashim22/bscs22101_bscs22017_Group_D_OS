@@ -4,11 +4,22 @@
 #include <winsock2.h>
 #include <windows.h>
 
-// PORT: The port number on which the server is listening.
-// BUFFER_SIZE: The size of the buffer used to send/receive data.
 #define PORT 8080
 #define BUFFER_SIZE 1024
-void process_file(const char *file_path)
+
+// Function to check available disk space in bytes
+unsigned long long get_free_space(const char *drive)
+{
+    ULARGE_INTEGER freeBytesAvailable, totalNumberOfBytes, totalNumberOfFreeBytes;
+    if (GetDiskFreeSpaceEx(drive, &freeBytesAvailable, &totalNumberOfBytes, &totalNumberOfFreeBytes))
+    {
+        return freeBytesAvailable.QuadPart;
+    }
+    return 0;
+}
+
+// Function to process the file based on the command
+void process_file(const char *file_path, SOCKET client_socket)
 {
     FILE *file = fopen(file_path, "r");
     char line[BUFFER_SIZE];
@@ -21,6 +32,7 @@ void process_file(const char *file_path)
 
     char command[BUFFER_SIZE] = {0};
     char filename[BUFFER_SIZE] = {0};
+    char drive[4] = {0}; // For drive letter, e.g., "C:"
 
     // Simple parsing, assuming JSON format {"command": "upload", "filename": "example.txt"}
     while (fgets(line, sizeof(line), file) != NULL)
@@ -39,16 +51,48 @@ void process_file(const char *file_path)
 
     if (strcmp(command, "upload") == 0)
     {
-        FILE *new_file = fopen(filename, "w");
-        if (new_file == NULL)
-        {
-            printf("Could not create file: %s\n", filename);
-            return;
-        }
+        // Extract drive letter from filename
+        strncpy(drive, filename, 2);
+        drive[2] = '\0'; // Null-terminate
 
-        fprintf(new_file, "This is an example content for %s\n", filename);
-        fclose(new_file);
-        printf("File '%s' created successfully.\n", filename);
+        // Check if there is enough space
+        unsigned long long free_space = get_free_space(drive);
+        printf("Free space on drive %s: %llu bytes\n", drive, free_space);
+
+        if (free_space > 100000) // Check if there is more than 100KB free space
+        {
+            // Send success message to client
+            char success_message[] = "Success: Ready to receive file content.";
+            send(client_socket, success_message, strlen(success_message), 0);
+
+            // Receive file content from client
+            char file_content[BUFFER_SIZE] = {0};
+            int bytes_received = recv(client_socket, file_content, BUFFER_SIZE, 0);
+            if (bytes_received > 0)
+            {
+                file_content[bytes_received] = '\0';
+                printf("Received file content:\n%s", file_content);
+
+                // Write the received content to the file
+                FILE *new_file = fopen(filename, "w");
+                if (new_file == NULL)
+                {
+                    printf("Could not create file: %s\n", filename);
+                    return;
+                }
+
+                fprintf(new_file, "%s", file_content);
+                fclose(new_file);
+                printf("File '%s' created successfully.\n", filename);
+            }
+        }
+        else
+        {
+            // Send failure message to client
+            char failure_message[] = "Failure: Not enough disk space.";
+            send(client_socket, failure_message, strlen(failure_message), 0);
+            printf("Not enough disk space for file: %s\n", filename);
+        }
     }
     else
     {
@@ -64,40 +108,22 @@ int main()
     int addrlen = sizeof(address);
     char buffer[BUFFER_SIZE] = {0};
 
-    /* Initialize Winsock
-     WSAStartup: Initializes the Winsock library. The MAKEWORD(2,2) specifies the version of Winsock
-       to use (2.2 in this case).
-       If initialization fails, the program prints an error and exits. */
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
     {
         printf("Failed. Error Code : %d\n", WSAGetLastError());
         return 1;
     }
 
-    /*Create socket
-    Sockets are used in networking to connect different computers or devices so they can communicate with each other.
-    The socket() function creates a new socket. This is similar to setting up a communication channel that can be used to send or receive data.
-    syntax-> int var = socket(int domain , int type, int protocol)  domain is
-    internet protocol version means address family and type is which type of protocol we are using and
-    protocol we set 0 because 0 is default tcp port*/
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET)
     {
         printf("Could not create socket : %d\n", WSAGetLastError());
         return 1;
     }
 
-    /* Prepare the sockaddr_in structure
-    server.sin_family: Specifies the address family (AF_INET for IPv4).
-       server.sin_port: Specifies the port number, converted to network byte order using htons().
-       server.sin_addr.s_addr: Specifies the server's IP address (127.0.0.1 for localhost) converted to
-       network byte order using inet_addr(). */
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    /*Bind
-    The bind() function assigns the address specified by address to the socket.
-    This is necessary so that the socket has a known address for clients to connect to.*/
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) == SOCKET_ERROR)
     {
         printf("Bind failed with error code : %d\n", WSAGetLastError());
@@ -106,21 +132,14 @@ int main()
         return 1;
     }
 
-    /* Listen for incoming connections
-     The listen() function marks the socket as a passive socket that will be used to accept incoming connection requests using accept().*/
     listen(server_fd, 3);
 
     printf("Server is running and waiting for connections on port %d...\n", PORT);
 
-    // Server loop to keep running and accepting new connections
     while (1)
     {
         printf("Waiting for a new connection...\n");
 
-        /*Accept incoming connection
-        The accept() function is used to accept an incoming connection request from a client.
-        It creates a new socket (new_socket) to handle the communication with the client while leaving
-        the original socket (server_fd) to continue listening for new connections.*/
         new_socket = accept(server_fd, (struct sockaddr *)&address, &addrlen);
         if (new_socket == INVALID_SOCKET)
         {
@@ -130,15 +149,12 @@ int main()
             return 1;
         }
 
-        /*Receive a message from client
-        The recv() function is used to receive data from the client.
-        It reads the data into the buffer.*/
         int bytes_received = recv(new_socket, buffer, BUFFER_SIZE, 0);
         if (bytes_received > 0)
         {
-            buffer[bytes_received] = '\0'; // Null-terminate the received data
+            buffer[bytes_received] = '\0';
             printf("Filepath from client: %s\n", buffer);
-            process_file(buffer);
+            process_file(buffer, new_socket);
         }
         else if (bytes_received == 0)
         {
@@ -149,13 +165,9 @@ int main()
             printf("Receive failed with error code : %d\n", WSAGetLastError());
         }
 
-        /*Cleanup for the current connection
-        After the communication is complete, closesocket() is used to close the sockets, and WSACleanup()
-        is called to clean up resources used by Winsock.*/
         closesocket(new_socket);
     }
 
-    // Cleanup after the server stops (though this part is unlikely to be reached)
     closesocket(server_fd);
     WSACleanup();
 
