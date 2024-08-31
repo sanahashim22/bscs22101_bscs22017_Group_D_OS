@@ -2,12 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <winsock2.h>
+#include <windows.h>
 
 // PORT: The port number on which the server is listening.
 // BUFFER_SIZE: The size of the buffer used to send/receive data.
 #define PORT 8080
 #define BUFFER_SIZE 1024
-
 void process_file(const char *file_path)
 {
     FILE *file = fopen(file_path, "r");
@@ -19,13 +19,41 @@ void process_file(const char *file_path)
         return;
     }
 
-    printf("File content:\n");
+    char command[BUFFER_SIZE] = {0};
+    char filename[BUFFER_SIZE] = {0};
+
+    // Simple parsing, assuming JSON format {"command": "upload", "filename": "example.txt"}
     while (fgets(line, sizeof(line), file) != NULL)
     {
-        printf("%s", line);
+        if (strstr(line, "\"command\":") != NULL)
+        {
+            sscanf(line, " \"command\": \"%[^\"]\"", command);
+        }
+        else if (strstr(line, "\"filename\":") != NULL)
+        {
+            sscanf(line, " \"filename\": \"%[^\"]\"", filename);
+        }
     }
 
     fclose(file);
+
+    if (strcmp(command, "upload") == 0)
+    {
+        FILE *new_file = fopen(filename, "w");
+        if (new_file == NULL)
+        {
+            printf("Could not create file: %s\n", filename);
+            return;
+        }
+
+        fprintf(new_file, "This is an example content for %s\n", filename);
+        fclose(new_file);
+        printf("File '%s' created successfully.\n", filename);
+    }
+    else
+    {
+        printf("Unknown command: %s\n", command);
+    }
 }
 
 int main()
