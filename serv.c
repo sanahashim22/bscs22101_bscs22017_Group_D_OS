@@ -1,25 +1,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <winsock2.h>
-#include <windows.h>
+#include <unistd.h>      // For close()
+#include <arpa/inet.h>   // For inet_addr(), htons(), INADDR_ANY, etc.
+#include <sys/socket.h>  // For socket(), bind(), listen(), accept()
+#include <sys/statvfs.h> // For getting filesystem statistics
 
 #define PORT 8080
 #define BUFFER_SIZE 1024
 
 // Function to check available disk space in bytes
-unsigned long long get_free_space(const char *drive)
+unsigned long long get_free_space(const char *path)
 {
-    ULARGE_INTEGER freeBytesAvailable, totalNumberOfBytes, totalNumberOfFreeBytes;
-    if (GetDiskFreeSpaceEx(drive, &freeBytesAvailable, &totalNumberOfBytes, &totalNumberOfFreeBytes))
+    struct statvfs stat;
+
+    if (statvfs(path, &stat) != 0)
     {
-        return freeBytesAvailable.QuadPart;
+        // Error getting filesystem statistics
+        return 0;
     }
-    return 0;
+
+    // Calculate the available space in bytes
+    return stat.f_bsize * stat.f_bavail;
 }
 
 // Function to process the file based on the command
-void process_file(const char *file_path, SOCKET client_socket)
+void process_file(const char *file_path, int client_socket)
 {
     FILE *file = fopen(file_path, "r");
     char line[BUFFER_SIZE];
@@ -32,7 +38,7 @@ void process_file(const char *file_path, SOCKET client_socket)
 
     char command[BUFFER_SIZE] = {0};
     char filename[BUFFER_SIZE] = {0};
-    char drive[4] = {0}; // For drive letter, e.g., "C:"
+    char path[BUFFER_SIZE] = "/"; // Default to root for checking disk space
 
     // Simple parsing, assuming JSON format {"command": "upload", "filename": "example.txt"}
     while (fgets(line, sizeof(line), file) != NULL)
@@ -51,13 +57,9 @@ void process_file(const char *file_path, SOCKET client_socket)
 
     if (strcmp(command, "upload") == 0)
     {
-        // Extract drive letter from filename
-        strncpy(drive, filename, 2);
-        drive[2] = '\0'; // Null-terminate
-
-        // Check if there is enough space
-        unsigned long long free_space = get_free_space(drive);
-        printf("Free space on drive %s: %llu bytes\n", drive, free_space);
+        // Use the root ("/") for checking free space
+        unsigned long long free_space = get_free_space(path);
+        printf("Free space on path %s: %llu bytes\n", path, free_space);
 
         if (free_space > 100000) // Check if there is more than 100KB free space
         {
@@ -102,21 +104,15 @@ void process_file(const char *file_path, SOCKET client_socket)
 
 int main()
 {
-    WSADATA wsa;
-    SOCKET server_fd, new_socket;
+    int server_fd, new_socket;
     struct sockaddr_in address;
     int addrlen = sizeof(address);
     char buffer[BUFFER_SIZE] = {0};
 
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+    // Create socket
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        printf("Failed. Error Code : %d\n", WSAGetLastError());
-        return 1;
-    }
-
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET)
-    {
-        printf("Could not create socket : %d\n", WSAGetLastError());
+        perror("Socket creation failed");
         return 1;
     }
 
@@ -124,15 +120,21 @@ int main()
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) == SOCKET_ERROR)
+    // Bind socket to the port
+    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0)
     {
-        printf("Bind failed with error code : %d\n", WSAGetLastError());
-        closesocket(server_fd);
-        WSACleanup();
+        perror("Bind failed");
+        close(server_fd);
         return 1;
     }
 
-    listen(server_fd, 3);
+    // Listen for incoming connections
+    if (listen(server_fd, 3) < 0)
+    {
+        perror("Listen failed");
+        close(server_fd);
+        return 1;
+    }
 
     printf("Server is running and waiting for connections on port %d...\n", PORT);
 
@@ -140,12 +142,11 @@ int main()
     {
         printf("Waiting for a new connection...\n");
 
-        new_socket = accept(server_fd, (struct sockaddr *)&address, &addrlen);
-        if (new_socket == INVALID_SOCKET)
+        new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen);
+        if (new_socket < 0)
         {
-            printf("Accept failed with error code : %d\n", WSAGetLastError());
-            closesocket(server_fd);
-            WSACleanup();
+            perror("Accept failed");
+            close(server_fd);
             return 1;
         }
 
@@ -162,14 +163,13 @@ int main()
         }
         else
         {
-            printf("Receive failed with error code : %d\n", WSAGetLastError());
+            perror("Receive failed");
         }
 
-        closesocket(new_socket);
+        close(new_socket);
     }
 
-    closesocket(server_fd);
-    WSACleanup();
+    close(server_fd);
 
     return 0;
 }
