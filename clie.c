@@ -1,25 +1,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>     // For close()
-#include <arpa/inet.h>  // For inet_addr() and htons()
-#include <sys/socket.h> // For socket(), connect(), send(), recv()
+#include <winsock2.h>
+#include <windows.h>
 
 #define PORT 8080
 #define BUFFER_SIZE 1024
 
 int main()
 {
-    int sock;
+    WSADATA wsa;
+    SOCKET sock;
     struct sockaddr_in server;
     char *message = "C:\\Users\\HP\\OneDrive\\Desktop\\Semester 5\\Operating System\\Git Repo\\bscs22101_bscs22017_Group_D_OS\\cmds.txt";
     char server_response[BUFFER_SIZE] = {0};
     char file_content[BUFFER_SIZE] = {0};
 
-    // Create socket
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    // Initialize Winsock
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
     {
-        perror("Socket creation failed");
+        printf("Failed. Error Code : %d", WSAGetLastError());
+        return 1;
+    }
+
+    // Create socket
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET)
+    {
+        printf("Could not create socket : %d", WSAGetLastError());
+        WSACleanup();
         return 1;
     }
 
@@ -31,16 +39,18 @@ int main()
     // Connect to server
     if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0)
     {
-        perror("Connection failed");
-        close(sock);
+        printf("Connect failed with error code : %d", WSAGetLastError());
+        closesocket(sock);
+        WSACleanup();
         return 1;
     }
 
     // Send the command file path to the server
     if (send(sock, message, strlen(message), 0) < 0)
     {
-        perror("Send failed");
-        close(sock);
+        printf("Send failed with error code : %d", WSAGetLastError());
+        closesocket(sock);
+        WSACleanup();
         return 1;
     }
 
@@ -62,7 +72,7 @@ int main()
             // Send the file content to the server
             if (send(sock, file_content, strlen(file_content), 0) < 0)
             {
-                perror("Send failed");
+                printf("Send failed with error code : %d", WSAGetLastError());
             }
             else
             {
@@ -76,11 +86,12 @@ int main()
     }
     else
     {
-        perror("Failed to receive response from server");
+        printf("Failed to receive response from server. Error code : %d\n", WSAGetLastError());
     }
 
     // Cleanup
-    close(sock);
+    closesocket(sock);
+    WSACleanup();
 
     return 0;
 }
