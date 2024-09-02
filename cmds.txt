@@ -1,4 +1,0 @@
-{
-    "command": "upload",
-    "filename": "C:\\Users\\HP\\OneDrive\\Desktop\\Semester 5\\Operating System\\Git Repo\\bscs22101_bscs22017_Group_D_OS\\sample.txt"
-}
