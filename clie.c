@@ -1,33 +1,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <winsock2.h>
-#include <windows.h>
+#include <unistd.h>     // For close()
+#include <arpa/inet.h>  // For inet_addr() and htons()
+#include <sys/socket.h> // For socket(), connect(), send(), recv()
 
 #define PORT 8080
 #define BUFFER_SIZE 1024
 
 int main()
 {
-    WSADATA wsa;
-    SOCKET sock;
+    int sock;
     struct sockaddr_in server;
-    char *message = "C:\\Users\\HP\\OneDrive\\Desktop\\Semester 5\\Operating System\\Git Repo\\bscs22101_bscs22017_Group_D_OS\\cmds.txt";
+    char *message = "/home/haris/Desktop/command.txt";
     char server_response[BUFFER_SIZE] = {0};
     char file_content[BUFFER_SIZE] = {0};
 
-    // Initialize Winsock
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
-    {
-        printf("Failed. Error Code : %d", WSAGetLastError());
-        return 1;
-    }
-
     // Create socket
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET)
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        printf("Could not create socket : %d", WSAGetLastError());
-        WSACleanup();
+        perror("Socket creation failed");
         return 1;
     }
 
@@ -39,59 +31,80 @@ int main()
     // Connect to server
     if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0)
     {
-        printf("Connect failed with error code : %d", WSAGetLastError());
-        closesocket(sock);
-        WSACleanup();
+        perror("Connection failed");
+        close(sock);
         return 1;
     }
 
     // Send the command file path to the server
     if (send(sock, message, strlen(message), 0) < 0)
     {
-        printf("Send failed with error code : %d", WSAGetLastError());
-        closesocket(sock);
-        WSACleanup();
+        perror("Send failed");
+        close(sock);
         return 1;
     }
 
     printf("File path sent to server.\n");
 
     // Receive server response regarding disk space
+    // int bytes_received = recv(sock, server_response, BUFFER_SIZE, 0);
+    // if (bytes_received > 0)
+    // {
+    //     server_response[bytes_received] = '\0';
+    //     printf("Server response: %s\n", server_response);
+
+    //     if (strstr(server_response, "Success") != NULL)
+    //     {
+    //         // Server is ready to receive the file content
+    //         printf("Enter the content for the file:\n");
+    //         fgets(file_content, BUFFER_SIZE, stdin);
+
+    //         // Send the file content to the server
+    //         if (send(sock, file_content, strlen(file_content), 0) < 0)
+    //         {
+    //             perror("Send failed");
+    //         }
+    //         else
+    //         {
+    //             printf("File content sent to server.\n");
+    //         }
+    //     }
+    //     else
+    //     {
+    //         printf("Server could not process the file due to insufficient space.\n");
+    //     }
+    // }
+    // Receive server response
     int bytes_received = recv(sock, server_response, BUFFER_SIZE, 0);
     if (bytes_received > 0)
     {
         server_response[bytes_received] = '\0';
         printf("Server response: %s\n", server_response);
 
-        if (strstr(server_response, "Success") != NULL)
+        // Check if the response contains file content or a failure message
+        if (strstr(server_response, "File content:") != NULL)
         {
-            // Server is ready to receive the file content
-            printf("Enter the content for the file:\n");
-            fgets(file_content, BUFFER_SIZE, stdin);
-
-            // Send the file content to the server
-            if (send(sock, file_content, strlen(file_content), 0) < 0)
-            {
-                printf("Send failed with error code : %d", WSAGetLastError());
-            }
-            else
-            {
-                printf("File content sent to server.\n");
-            }
+            // Print the file content received from the server
+            printf("File content received from server:\n%s\n", server_response);
         }
-        else
+        else if (strstr(server_response, "Failure:") != NULL)
         {
-            printf("Server could not process the file due to insufficient space.\n");
+            // Print the failure message
+            printf("Server response: %s\n", server_response);
         }
+        // else
+        // {
+        //     // Handle unexpected server response
+        //     printf("Unexpected server response: %s\n", server_response);
+        // }
     }
     else
     {
-        printf("Failed to receive response from server. Error code : %d\n", WSAGetLastError());
+        perror("Failed to receive response from server");
     }
 
     // Cleanup
-    closesocket(sock);
-    WSACleanup();
+    close(sock);
 
     return 0;
 }

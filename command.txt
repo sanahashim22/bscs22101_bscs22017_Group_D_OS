@@ -1,0 +1,4 @@
+{
+    "command": "download",
+    "filepath": "/home/haris/Desktop/sample.txt"
+}
