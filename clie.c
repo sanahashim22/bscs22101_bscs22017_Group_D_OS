@@ -5,14 +5,14 @@
 #include <arpa/inet.h>  // For inet_addr() and htons()
 #include <sys/socket.h> // For socket(), connect(), send(), recv()
 
-#define PORT 8080
-#define BUFFER_SIZE 1024
+#define PORT 8008
+#define BUFFER_SIZE 2048
 
 int main()
 {
     int sock;
     struct sockaddr_in server;
-    char *message = "/home/haris/Desktop/command.txt";
+    char *message = "/home/haris/Desktop/OS/Codes/command.txt";
     char server_response[BUFFER_SIZE] = {0};
     char file_content[BUFFER_SIZE] = {0};
 
@@ -82,7 +82,23 @@ int main()
         printf("Server response: %s\n", server_response);
 
         // Check if the response contains file content or a failure message
-        if (strstr(server_response, "File content:") != NULL)
+        if (strstr(server_response, "Success") != NULL)
+        {
+            // Server is ready to receive the file content
+            printf("Enter the content for the file:\n");
+            fgets(file_content, BUFFER_SIZE, stdin);
+
+            // Send the file content to the server
+            if (send(sock, file_content, strlen(file_content), 0) < 0)
+            {
+                perror("Send failed");
+            }
+            else
+            {
+                printf("File content sent to server.\n");
+            }
+        }
+        else if (strstr(server_response, "File content:") != NULL)
         {
             // Print the file content received from the server
             printf("File content received from server:\n%s\n", server_response);
@@ -92,11 +108,11 @@ int main()
             // Print the failure message
             printf("Server response: %s\n", server_response);
         }
-        // else
-        // {
-        //     // Handle unexpected server response
-        //     printf("Unexpected server response: %s\n", server_response);
-        // }
+        else if (strstr(server_response, "Files in directory:") != NULL)
+        {
+            // Print the list of files with details (for "view" command)
+            printf("Files in directory received from server:\n%s\n", server_response);
+        }
     }
     else
     {
