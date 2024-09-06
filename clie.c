@@ -5,7 +5,7 @@
 #include <arpa/inet.h>  // For inet_addr() and htons()
 #include <sys/socket.h> // For socket(), connect(), send(), recv()
 
-#define PORT 8008
+#define PORT 8001
 #define BUFFER_SIZE 2048
 
 int main()
@@ -47,42 +47,15 @@ int main()
     printf("File path sent to server.\n");
 
     // Receive server response regarding disk space
-    // int bytes_received = recv(sock, server_response, BUFFER_SIZE, 0);
-    // if (bytes_received > 0)
-    // {
-    //     server_response[bytes_received] = '\0';
-    //     printf("Server response: %s\n", server_response);
-
-    //     if (strstr(server_response, "Success") != NULL)
-    //     {
-    //         // Server is ready to receive the file content
-    //         printf("Enter the content for the file:\n");
-    //         fgets(file_content, BUFFER_SIZE, stdin);
-
-    //         // Send the file content to the server
-    //         if (send(sock, file_content, strlen(file_content), 0) < 0)
-    //         {
-    //             perror("Send failed");
-    //         }
-    //         else
-    //         {
-    //             printf("File content sent to server.\n");
-    //         }
-    //     }
-    //     else
-    //     {
-    //         printf("Server could not process the file due to insufficient space.\n");
-    //     }
-    // }
     // Receive server response
     int bytes_received = recv(sock, server_response, BUFFER_SIZE, 0);
     if (bytes_received > 0)
     {
         server_response[bytes_received] = '\0';
-        printf("Server response: %s\n", server_response);
+        // printf("Server response: %s\n", server_response);
 
         // Check if the response contains file content or a failure message
-        if (strstr(server_response, "Success") != NULL)
+        if (strstr(server_response, "Success: Ready to receive file content.") != NULL)
         {
             // Server is ready to receive the file content
             printf("Enter the content for the file:\n");
@@ -98,17 +71,17 @@ int main()
                 printf("File content sent to server.\n");
             }
         }
-        else if (strstr(server_response, "File content:") != NULL)
+        else if (strstr(server_response, "File content:") == NULL)
         {
-            // Print the file content received from the server
+            // Print the file content received from the servers
             printf("File content received from server:\n%s\n", server_response);
         }
-        else if (strstr(server_response, "Failure:") != NULL)
+        else if (strstr(server_response, "Failure:") == NULL)
         {
             // Print the failure message
             printf("Server response: %s\n", server_response);
         }
-        else if (strstr(server_response, "Files in directory:") != NULL)
+        else if (strstr(server_response, "Files in directory:") == NULL)
         {
             // Print the list of files with details (for "view" command)
             printf("Files in directory received from server:\n%s\n", server_response);
@@ -116,7 +89,7 @@ int main()
     }
     else
     {
-        perror("Failed to receive response from server");
+        printf("Failed to receive response from server\n");
     }
 
     // Cleanup

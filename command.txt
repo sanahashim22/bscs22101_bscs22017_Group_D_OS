@@ -1,4 +1,3 @@
 {
-    "command": "download",
-    "filename": "sample.txt"
+    "command": "view"
 }

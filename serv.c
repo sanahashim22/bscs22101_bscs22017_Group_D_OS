@@ -11,7 +11,7 @@
 #include <time.h>
 #include <errno.h>
 
-#define PORT 8008
+#define PORT 8001
 #define BUFFER_SIZE 1024
 #define FILE_PATH_BUFFER_SIZE 2048 // Increased buffer size for full file path
 
@@ -85,6 +85,21 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
         else if (strstr(line, "\"filepath\":") != NULL)
         {
             sscanf(line, " \"filepath\": \"%[^\"]\"", filepath);
+            char *last_slash = strrchr(filepath, '/');
+
+            if (last_slash != NULL)
+            {
+                // Calculate the length of the directory path (excluding the file name)
+                size_t length = last_slash - filepath;
+
+                // Copy the directory part into dir_path
+                strncpy(filepath, filepath, length);
+
+                // Null-terminate the string
+                filepath[length] = '\0';
+                last_slash++;
+                strncpy(filename, last_slash, strlen(last_slash));
+            }
         }
     }
 
@@ -112,7 +127,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
 
                 // Construct the full file path inside the created folder
                 char full_file_path[FILE_PATH_BUFFER_SIZE];
-                if (snprintf(full_file_path, sizeof(full_file_path), "%s/%s", folder_path, filename) >= sizeof(full_file_path))
+                if (snprintf(full_file_path, sizeof(full_file_path), "%s/%s", filepath, filename) >= sizeof(full_file_path))
                 {
                     printf("Error: File path is too long.\n");
                     return;
@@ -128,7 +143,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
 
                 fprintf(new_file, "%s", file_content);
                 fclose(new_file);
-                printf("File '%s' created successfully in directory: %s\n", filename, folder_path);
+                printf("File '%s' created successfully in directory: %s\n", filename, filepath);
             }
         }
         else
@@ -138,9 +153,10 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
             send(client_socket, failure_message, strlen(failure_message), 0);
             printf("Not enough disk space for file: %s\n", filename);
         }
+        return;
     }
 
-    if (strcmp(command, "download") == 0)
+    else if (strcmp(command, "download") == 0)
     {
         char file_content[BUFFER_SIZE];
         FILE *file_to_send;
@@ -171,6 +187,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
 
         fclose(file_to_send);
         printf("File '%s' sent to client from directory '%s'.\n", filename, folder_path);
+        return;
     }
     else if (strcmp(command, "view") == 0)
     {
@@ -198,11 +215,32 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
                 // Get file stats (size, modification time)
                 if (stat(file_path, &file_stat) == 0)
                 {
-                    // Format the file details
-                    snprintf(message, sizeof(message), "File: %s | Size: %lld bytes | Last Modified: %s",
-                             entry->d_name, (long long)file_stat.st_size, ctime(&file_stat.st_mtime));
-                    send(client_socket, message, strlen(message), 0);
+
+                    // Open the file and read its content
+                    FILE *file = fopen(file_path, "r");
+                    if (file != NULL)
+                    {
+                        char file_content[BUFFER_SIZE];
+                        int bytes_read;
+
+                        // Read the file in chunks and send the content to the client
+                        while ((bytes_read = fread(file_content, 1, sizeof(file_content) - 1, file)) > 0)
+                        {
+                            file_content[bytes_read] = '\0';                  // Null-terminate the string
+                            send(client_socket, file_content, bytes_read, 0); // Send the content
+                        }
+
+                        fclose(file); // Close the file after reading
+                    }
+                    else
+                    {
+                        perror("Error opening file for reading");
+                    }
                 }
+                // Format the file details
+                snprintf(message, sizeof(message), "\nFile:\n%s | Size: %lld bytes | Last Modified: %s\n",
+                         entry->d_name, (long long)file_stat.st_size, ctime(&file_stat.st_mtime));
+                send(client_socket, message, strlen(message), 0);
             }
             closedir(dir);
         }
@@ -210,11 +248,15 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
         {
             perror("Could not open directory");
         }
+        return;
     }
+
     else
     {
         printf("Unknown command: %s\n", command);
+        printf("Supported commands are: upload, download, view\n");
     }
+    return;
 }
 
 int main()
@@ -226,7 +268,7 @@ int main()
 
     // Define the folder path based on the port number
     char folder_path[BUFFER_SIZE];
-    snprintf(folder_path, sizeof(folder_path), "/home/haris/Desktop/OS/%d", PORT);
+    snprintf(folder_path, sizeof(folder_path), "/home/haris/Desktop/OS/Codes/%d", PORT);
 
     // Create the directory if it doesn't exist
     create_directory_if_not_exists(folder_path);
