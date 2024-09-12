@@ -1,3 +1,5 @@
 {
-    "command": "view"
+    "ID": "01",
+    "command": "upload",
+    "filepath": "/home/haris/Desktop/OS/Codes/sample.txt"
 }
