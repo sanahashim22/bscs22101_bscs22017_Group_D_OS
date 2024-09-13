@@ -12,7 +12,7 @@ int main()
 {
     int sock;
     struct sockaddr_in server;
-    char *message = "/home/haris/Desktop/OS/Codes/command.txt";
+    char *message = "/home/haris/Desktop/OS/Codes/bscs22101_bscs22017_Group_D_OS/command.txt";
     char server_response[BUFFER_SIZE] = {0};
     char file_content[BUFFER_SIZE] = {0};
 
@@ -55,33 +55,21 @@ int main()
         // printf("Server response: %s\n", server_response);
 
         // Check if the response contains file content or a failure message
-        if (strstr(server_response, "Success: Ready to receive file content.") != NULL)
+        if (strstr(server_response, "Success: Directory created successfully") != NULL)
         {
-            // Server is ready to receive the file content
-            printf("Enter the content for the file:\n");
-            fgets(file_content, BUFFER_SIZE, stdin);
-
-            // Send the file content to the server
-            if (send(sock, file_content, strlen(file_content), 0) < 0)
-            {
-                perror("Send failed");
-            }
-            else
-            {
-                printf("File content sent to server.\n");
-            }
+            printf("Server response: %s\nFile created successfully\n", server_response);
         }
-        else if (strstr(server_response, "File content:") == NULL)
+        else if (strstr(server_response, "File content:") != NULL)
         {
             // Print the file content received from the servers
-            printf("File content received from server:\n%s\n", server_response);
+            printf("Response: %s\n", server_response);
         }
-        else if (strstr(server_response, "Failure:") == NULL)
+        else if (strstr(server_response, "Failure:") != NULL)
         {
             // Print the failure message
             printf("Server response: %s\n", server_response);
         }
-        else if (strstr(server_response, "Files in directory:") == NULL)
+        else if (strstr(server_response, "Last Modified: ") != NULL)
         {
             // Print the list of files with details (for "view" command)
             printf("Files in directory received from server:\n%s\n", server_response);
