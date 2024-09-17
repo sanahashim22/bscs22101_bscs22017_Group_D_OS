@@ -1,4 +1,5 @@
 {
-    "ID": "02",
-    "command": "view"
+    "ID": "01",
+    "command": "upload",
+    "filepath":"/home/haris/Desktop/OS/Codes/bscs22101_bscs22017_Group_D_OS/sample.txt"
 }

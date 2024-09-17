@@ -55,31 +55,78 @@ int main()
         // printf("Server response: %s\n", server_response);
 
         // Check if the response contains file content or a failure message
-        if (strstr(server_response, "Success: Directory created successfully") != NULL)
+        if (strstr(server_response, "Success: Ready to receive file.") != NULL)
         {
-            printf("Server response: %s\nFile created successfully\n", server_response);
+            FILE *file = fopen(message, "r");
+            char line[BUFFER_SIZE];
+
+            if (file == NULL)
+            {
+                printf("Could not open file: %s\n", message);
+                return 0;
+            }
+            char command[BUFFER_SIZE] = {0};
+            char filename[BUFFER_SIZE] = {0};
+            char path[BUFFER_SIZE] = "/"; // Default to root for checking disk space
+            char filepath[BUFFER_SIZE] = {0};
+
+            // Simple parsing, assuming JSON format {"command": "upload", "filename": "example.txt"}
+            while (fgets(line, sizeof(line), file) != NULL)
+            {
+                if (strstr(line, "\"command\":") != NULL)
+                {
+                    sscanf(line, " \"command\": \"%[^\"]\"", command);
+                }
+                else if (strstr(line, "\"filepath\":") != NULL)
+                {
+                    sscanf(line, " \"filepath\": \"%[^\"]\"", filepath);
+                }
+            }
+
+            fclose(file);
+            FILE *file_to_send = fopen(filepath, "rb");
+            if (file_to_send == NULL)
+            {
+                printf("Error: Could not open file %s for reading.\n", filepath);
+                return 0;
+            }
+
+            char file_content[BUFFER_SIZE] = {0};
+            int bytes_read;
+
+            // Read the file in chunks and send to the server
+            while ((bytes_read = fread(file_content, 1, sizeof(file_content), file_to_send)) > 0)
+            {
+                send(sock, file_content, bytes_read, 0);
+            }
+
+            fclose(file_to_send);
+            printf("File '%s' sent successfully.\n", filepath);
         }
-        else if (strstr(server_response, "File content:") == NULL)
+        else if (strstr(server_response, "File content:") != NULL)
         {
             // Print the file content received from the servers
             printf("Response: %s\n", server_response);
         }
-        else if (strstr(server_response, "Failure:") == NULL)
+        else if (strstr(server_response, "Failure:") != NULL)
         {
             // Print the failure message
             printf("Server response: %s\n", server_response);
         }
-        else if (strstr(server_response, "Files in directory:") == NULL)
+        else if (strstr(server_response, "Last Modified: ") != NULL)
         {
             // Print the list of files with details (for "view" command)
             printf("Files in directory received from server:\n%s\n", server_response);
+        }
+        else
+        {
+            printf("Failed to receive response from server\n");
         }
     }
     else
     {
         printf("Failed to receive response from server\n");
     }
-
     // Cleanup
     close(sock);
 
