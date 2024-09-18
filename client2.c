@@ -12,7 +12,7 @@ int main()
 {
     int sock;
     struct sockaddr_in server;
-    char *message = "/home/haris/Desktop/OS/Codes/bscs22101_bscs22017_Group_D_OS/command.txt";
+    char *message = "/home/sana/Desktop/os/bscs22101_bscs22017_Group_D_OS-main/command.txt";
     char server_response[BUFFER_SIZE] = {0};
     char file_content[BUFFER_SIZE] = {0};
 

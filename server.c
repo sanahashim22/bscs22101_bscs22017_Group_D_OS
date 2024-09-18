@@ -11,6 +11,7 @@
 #include <time.h>
 #include <errno.h>
 #include <pthread.h>
+#include <ctype.h>   // for isdigit()
 
 #define PORT 8001
 #define MINI_BUFFER_SIZE 512
@@ -64,6 +65,33 @@ void create_directory_if_not_exists(const char *path)
 
 // Function to process the file based on the command
 // Function to process the file based on the command
+
+
+void encode_content(const char *input, char *output)
+{
+    int input_length = strlen(input);
+    int output_index = 0;
+
+    for (int i = 0; i < input_length; i++)
+    {
+        char current_char = input[i];
+        int count = 1;
+
+        // Count consecutive occurrences of current_char
+        while (i + 1 < input_length && input[i + 1] == current_char)
+        {
+            count++;
+            i++;
+        }
+
+        // Append count and character to output
+        output[output_index++] = count + '0'; // Convert count to char
+        output[output_index++] = current_char;
+    }
+
+    output[output_index] = '\0'; // Null-terminate the string
+}
+
 void process_file(const char *file_path, int client_socket, const char *folder_path)
 {
     FILE *file = fopen(file_path, "r");
@@ -119,7 +147,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
     }
 
     fclose(file);
-    snprintf(client_dir, sizeof(client_dir), "/home/haris/Desktop/OS/Codes/bscs22101_bscs22017_Group_D_OS/%s", id);
+    snprintf(client_dir, sizeof(client_dir), "/home/sana/Desktop/os/bscs22101_bscs22017_Group_D_OS-main/%s", id);
     // if (strcmp(command, "upload") == 0)
     // {
     //     create_directory_if_not_exists(client_dir);
@@ -212,18 +240,42 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
             }
 
             // Receive file content in chunks from the client
+            // char file_content[BUFFER_SIZE] = {0};
+            // int bytes_received;
+
+            // // Loop to receive file content in chunks
+            // while ((bytes_received = recv(client_socket, file_content, sizeof(file_content), 0)) > 0)
+            // {
+            //     fwrite(file_content, 1, bytes_received, new_file);
+            // }
+
+            // // Close the file after all data is received
+            // fclose(new_file);
+            // printf("File '%s' uploaded successfully to directory: %s\n", filename, client_dir);
             char file_content[BUFFER_SIZE] = {0};
-            int bytes_received;
+    int bytes_received;
 
-            // Loop to receive file content in chunks
-            while ((bytes_received = recv(client_socket, file_content, sizeof(file_content), 0)) > 0)
-            {
-                fwrite(file_content, 1, bytes_received, new_file);
-            }
+    while ((bytes_received = recv(client_socket, file_content, sizeof(file_content), 0)) > 0)
+    {
+        // Implement Run-Length Encoding (RLE)
+        char encoded_content[BUFFER_SIZE * 2]; // Adjust buffer size as needed
+        encode_content(file_content, encoded_content);
 
-            // Close the file after all data is received
-            fclose(new_file);
-            printf("File '%s' uploaded successfully to directory: %s\n", filename, client_dir);
+        // Open the new file where content will be written (in append mode)
+        FILE *new_file = fopen(client_dir, "ab");
+        if (new_file == NULL)
+        {
+            printf("Could not create file: %s\n", client_dir);
+            return;
+        }
+
+        // Write the encoded content to the file
+        fwrite(encoded_content, 1, strlen(encoded_content), new_file);
+
+        // Close the file after all data is received
+        fclose(new_file);
+        printf("File '%s' uploaded successfully to directory: %s\n", filename, client_dir);
+    }
         }
         else
         {
@@ -243,7 +295,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
         int bytes_read;
 
         // Construct the full path to the file
-        char full_file_path[FILE_PATH_BUFFER_SIZE] = "/home/haris/Desktop/OS/Codes/bscs22101_bscs22017_Group_D_OS";
+        char full_file_path[FILE_PATH_BUFFER_SIZE] = "/home/sana/Desktop/os/bscs22101_bscs22017_Group_D_OS-main";
 
         // snprintf(full_file_path, sizeof(full_file_path), "%s/%s", client_dir, filename);
         snprintf(client_dir, sizeof(client_dir), "/%s/%s/%s", full_file_path, id, filename);
@@ -262,7 +314,6 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
         // Send the file content to the client
         while ((bytes_read = fread(file_content, 1, sizeof(file_content) - 1, file_to_send)) > 0)
         {
-            file_content[bytes_read] = '\0';
             char success_message[FILE_PATH_BUFFER_SIZE] = "File content: \0";
             strcat(success_message, file_content);
             send(client_socket, success_message, strlen(success_message), 0);

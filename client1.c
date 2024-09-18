@@ -4,15 +4,49 @@
 #include <unistd.h>     // For close()
 #include <arpa/inet.h>  // For inet_addr() and htons()
 #include <sys/socket.h> // For socket(), connect(), send(), recv()
+#include <ctype.h>   // for isdigit()
+
 
 #define PORT 8001
 #define BUFFER_SIZE 2048
+
+void decode_content(const char *input, char *output)
+{
+    int input_length = strlen(input);
+    int output_index = 0;
+
+    for (int i = 0; i < input_length; i++)
+    {
+        char current_char = input[i];
+
+        if (isdigit(current_char))
+        {
+            int count = current_char - '0'; // Convert char count to int
+
+            // Append the next character 'count' times to output
+            i++; // Move to the next character
+            for (int j = 0; j < count; j++)
+            {
+                output[output_index++] = input[i];
+            }
+        }
+        else
+        {
+            // Directly append non-numeric characters to output
+            output[output_index++] = current_char;
+        }
+    }
+
+    output[output_index] = '\0'; // Null-terminate the string
+}
+
+
 
 int main()
 {
     int sock;
     struct sockaddr_in server;
-    char *message = "/home/haris/Desktop/OS/Codes/bscs22101_bscs22017_Group_D_OS/command.txt";
+    char *message = "/home/sana/Desktop/os/bscs22101_bscs22017_Group_D_OS-main/command.txt";
     char server_response[BUFFER_SIZE] = {0};
     char file_content[BUFFER_SIZE] = {0};
 
@@ -52,7 +86,8 @@ int main()
     if (bytes_received > 0)
     {
         server_response[bytes_received] = '\0';
-        // printf("Server response: %s\n", server_response);
+decode_content(server_response + strlen("File content:"), file_content);
+            printf("Decoded file content:\n%s\n", file_content);
 
         // Check if the response contains file content or a failure message
         if (strstr(server_response, "Success: Ready to receive file.") != NULL)
@@ -106,7 +141,14 @@ int main()
         else if (strstr(server_response, "File content:") != NULL)
         {
             // Print the file content received from the servers
-            printf("Response: %s\n", server_response);
+            // printf("Response: %s\n", server_response);
+            int bytes_received;
+
+            // Loop to receive file content in chunks
+            while ((bytes_received = recv(sock, file_content, sizeof(file_content), 0)) > 0)
+            {
+                printf("%s",file_content);
+            }
         }
         else if (strstr(server_response, "Failure:") != NULL)
         {
