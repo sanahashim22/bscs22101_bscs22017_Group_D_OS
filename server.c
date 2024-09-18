@@ -239,43 +239,20 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
                 return;
             }
 
-            // Receive file content in chunks from the client
-            // char file_content[BUFFER_SIZE] = {0};
-            // int bytes_received;
-
-            // // Loop to receive file content in chunks
-            // while ((bytes_received = recv(client_socket, file_content, sizeof(file_content), 0)) > 0)
-            // {
-            //     fwrite(file_content, 1, bytes_received, new_file);
-            // }
-
-            // // Close the file after all data is received
-            // fclose(new_file);
-            // printf("File '%s' uploaded successfully to directory: %s\n", filename, client_dir);
+            //Receive file content in chunks from the client
             char file_content[BUFFER_SIZE] = {0};
-    int bytes_received;
+            int bytes_received;
 
-    while ((bytes_received = recv(client_socket, file_content, sizeof(file_content), 0)) > 0)
-    {
-        // Implement Run-Length Encoding (RLE)
-        char encoded_content[BUFFER_SIZE * 2]; // Adjust buffer size as needed
-        encode_content(file_content, encoded_content);
+            // Loop to receive file content in chunks
+            while ((bytes_received = recv(client_socket, file_content, sizeof(file_content), 0)) > 0)
+            {
+                fwrite(file_content, 1, bytes_received, new_file);
+            }
 
-        // Open the new file where content will be written (in append mode)
-        FILE *new_file = fopen(client_dir, "ab");
-        if (new_file == NULL)
-        {
-            printf("Could not create file: %s\n", client_dir);
-            return;
-        }
-
-        // Write the encoded content to the file
-        fwrite(encoded_content, 1, strlen(encoded_content), new_file);
-
-        // Close the file after all data is received
-        fclose(new_file);
-        printf("File '%s' uploaded successfully to directory: %s\n", filename, client_dir);
-    }
+            // Close the file after all data is received
+            fclose(new_file);
+            printf("File '%s' uploaded successfully to directory: %s\n", filename, client_dir);
+            
         }
         else
         {
@@ -295,10 +272,11 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
         int bytes_read;
 
         // Construct the full path to the file
+        printf("client dir: %s", client_dir);
         char full_file_path[FILE_PATH_BUFFER_SIZE] = "/home/sana/Desktop/os/bscs22101_bscs22017_Group_D_OS-main";
 
         // snprintf(full_file_path, sizeof(full_file_path), "%s/%s", client_dir, filename);
-        snprintf(client_dir, sizeof(client_dir), "/%s/%s/%s", full_file_path, id, filename);
+        snprintf(client_dir, sizeof(client_dir), "%s/%s/%s", full_file_path, id, filename);
         // snprintf(client_dir + strlen(client_dir), sizeof(client_dir) - strlen(client_dir), "/%s", filename) >= (sizeof(client_dir) - strlen(client_dir));
         //  Open the file
         file_to_send = fopen(client_dir, "r");
@@ -310,13 +288,12 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
             printf("File '%s' not found in directory '%s'.\n", filename, client_dir);
             return;
         }
-
+            char success_message[BUFFER_SIZE] = "File content: ";
+            send(client_socket, success_message, strlen(success_message),0);
         // Send the file content to the client
         while ((bytes_read = fread(file_content, 1, sizeof(file_content) - 1, file_to_send)) > 0)
         {
-            char success_message[FILE_PATH_BUFFER_SIZE] = "File content: \0";
-            strcat(success_message, file_content);
-            send(client_socket, success_message, strlen(success_message), 0);
+            send(client_socket, file_content, strlen(file_content), 0);
         }
 
         fclose(file_to_send);
