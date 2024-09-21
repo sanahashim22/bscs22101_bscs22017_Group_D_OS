@@ -11,12 +11,12 @@
 #include <time.h>
 #include <errno.h>
 #include <pthread.h>
-#include <ctype.h>   // for isdigit()
+#include <ctype.h> 
 
 #define PORT 8001
 #define MINI_BUFFER_SIZE 512
 #define BUFFER_SIZE 1024
-#define FILE_PATH_BUFFER_SIZE 2048 // Increased buffer size for full file path
+#define FILE_PATH_BUFFER_SIZE 2048
 
 // Structure to pass arguments to the thread function
 struct client_info
@@ -64,33 +64,6 @@ void create_directory_if_not_exists(const char *path)
 }
 
 // Function to process the file based on the command
-// Function to process the file based on the command
-
-
-void encode_content(const char *input, char *output)
-{
-    int input_length = strlen(input);
-    int output_index = 0;
-
-    for (int i = 0; i < input_length; i++)
-    {
-        char current_char = input[i];
-        int count = 1;
-
-        // Count consecutive occurrences of current_char
-        while (i + 1 < input_length && input[i + 1] == current_char)
-        {
-            count++;
-            i++;
-        }
-
-        // Append count and character to output
-        output[output_index++] = count + '0'; // Convert count to char
-        output[output_index++] = current_char;
-    }
-
-    output[output_index] = '\0'; // Null-terminate the string
-}
 
 void process_file(const char *file_path, int client_socket, const char *folder_path)
 {
@@ -105,7 +78,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
 
     char command[BUFFER_SIZE] = {0};
     char filename[BUFFER_SIZE] = {0};
-    char path[BUFFER_SIZE] = "/"; // Default to root for checking disk space
+    char path[BUFFER_SIZE] = "/";
     char filepath[BUFFER_SIZE] = {0};
     char client_dir[FILE_PATH_BUFFER_SIZE * 3] = {0};
     char id[MINI_BUFFER_SIZE] = {0};
@@ -215,10 +188,10 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
         create_directory_if_not_exists(client_dir);
 
         // Use the root ("/") for checking free space
-        unsigned long long free_space = get_free_space(path);
-        printf("Free space on path %s: %llu bytes\n", path, free_space);
+        unsigned long long free_space = get_free_space(client_dir);
+        printf("Free space on path %s: %llu bytes\n", client_dir, free_space);
 
-        if (free_space > 100000) // Check if there is more than 100KB free space
+        if (free_space > 10000) // Check if there is more than 10KB free space
         {
             // Send success message to client
             char success_message[] = "Success: Ready to receive file.";
