@@ -1,5 +1,5 @@
 {
     "ID": "02",
-    "command": "upload",
-    "filepath": "/home/sana/Desktop/os/bscs22101_bscs22017_Group_D_OS-main/sample.txt"
+    "command": "download",
+    "filepath": "sample.txt"
 }

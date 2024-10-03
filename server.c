@@ -11,12 +11,12 @@
 #include <time.h>
 #include <errno.h>
 #include <pthread.h>
-#include <ctype.h> // for isdigit()
+#include <ctype.h> 
 
 #define PORT 8001
 #define MINI_BUFFER_SIZE 512
 #define BUFFER_SIZE 1024
-#define FILE_PATH_BUFFER_SIZE 2048 // Increased buffer size for full file path
+#define FILE_PATH_BUFFER_SIZE 2048
 
 // Structure to pass arguments to the thread function
 struct client_info
@@ -64,7 +64,6 @@ void create_directory_if_not_exists(const char *path)
 }
 
 // Function to process the file based on the command
-// Function to process the file based on the command
 
 void process_file(const char *file_path, int client_socket, const char *folder_path)
 {
@@ -79,7 +78,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
 
     char command[BUFFER_SIZE] = {0};
     char filename[BUFFER_SIZE] = {0};
-    char path[BUFFER_SIZE] = "/"; // Default to root for checking disk space
+    char path[BUFFER_SIZE] = "/";
     char filepath[BUFFER_SIZE] = {0};
     char client_dir[FILE_PATH_BUFFER_SIZE * 3] = {0};
     char id[MINI_BUFFER_SIZE] = {0};
@@ -121,7 +120,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
     }
 
     fclose(file);
-    snprintf(client_dir, sizeof(client_dir), "/home/haris/Desktop/OS/Codes/bscs22101_bscs22017_Group_D_OS-main/%s", id);
+    snprintf(client_dir, sizeof(client_dir), "/home/sana/Desktop/bscs22101_bscs22017_Group_D_Lab4/%s", id);
     // if (strcmp(command, "upload") == 0)
     // {
     //     create_directory_if_not_exists(client_dir);
@@ -192,7 +191,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
         unsigned long long free_space = get_free_space(client_dir);
         printf("Free space on path %s: %llu bytes\n", client_dir, free_space);
 
-        if (free_space > 100000) // Check if there is more than 100KB free space
+        if (free_space > 10000) // Check if there is more than 10KB free space
         {
             // Send success message to client
             char success_message[] = "Success: Ready to receive file.";
@@ -206,14 +205,14 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
             }
 
             // Open the new file where content will be written
-            FILE *new_file = fopen(folder_path, "wb");
+            FILE *new_file = fopen(client_dir, "wb");
             if (new_file == NULL)
             {
                 printf("Could not create file: %s\n", client_dir);
                 return;
             }
 
-            // Receive file content in chunks from the client
+            //Receive file content in chunks from the client
             char file_content[BUFFER_SIZE] = {0};
             int bytes_received;
 
@@ -226,6 +225,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
             // Close the file after all data is received
             fclose(new_file);
             printf("File '%s' uploaded successfully to directory: %s\n", filename, client_dir);
+            
         }
         else
         {
@@ -246,7 +246,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
 
         // Construct the full path to the file
         printf("client dir: %s", client_dir);
-        char full_file_path[FILE_PATH_BUFFER_SIZE] = "/home/haris/Desktop/OS/Codes/bscs22101_bscs22017_Group_D_OS-main";
+        char full_file_path[FILE_PATH_BUFFER_SIZE] = "/home/sana/Desktop/bscs22101_bscs22017_Group_D_Lab4";
 
         // snprintf(full_file_path, sizeof(full_file_path), "%s/%s", client_dir, filename);
         snprintf(client_dir, sizeof(client_dir), "%s/%s/%s", full_file_path, id, filename);
@@ -261,8 +261,8 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
             printf("File '%s' not found in directory '%s'.\n", filename, client_dir);
             return;
         }
-        char success_message[BUFFER_SIZE] = "File content: ";
-        send(client_socket, success_message, strlen(success_message), 0);
+            char success_message[BUFFER_SIZE] = "File content: ";
+            send(client_socket, success_message, strlen(success_message),0);
         // Send the file content to the client
         while ((bytes_read = fread(file_content, 1, sizeof(file_content) - 1, file_to_send)) > 0)
         {
@@ -280,7 +280,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
         struct stat file_stat;
         char file_path[FILE_PATH_BUFFER_SIZE * 4];
         char message[BUFFER_SIZE * 2]; // Larger buffer for sending details
-        int file_found = 0;
+
         // Open the directory
         if ((dir = opendir(client_dir)) != NULL)
         {
@@ -292,7 +292,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
                 {
                     continue;
                 }
-                file_found = 1;
+
                 // Construct the full path to the file
                 snprintf(file_path, sizeof(file_path), "/%s/%s", client_dir, entry->d_name);
 
@@ -304,38 +304,33 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
                     FILE *file = fopen(file_path, "r");
                     if (file != NULL)
                     {
-                        // char file_content[BUFFER_SIZE];
-                        // long long bytes_read;
-                        // // Read the file in chunks and send the content to the client
-                        // while ((bytes_read = fread(file_content, 1, sizeof(file_content) - 1, file)) > 0)
-                        // {
-                        //     file_content[bytes_read] = '\0'; // Null-terminate the string
-                        //     // send(client_socket, file_content, bytes_read, 0); // Send the content
-                        // }
+                        char file_content[BUFFER_SIZE];
+                        long long bytes_read;
+
+                        // Read the file in chunks and send the content to the client
+                        while ((bytes_read = fread(file_content, 1, sizeof(file_content) - 1, file)) > 0)
+                        {
+                            file_content[bytes_read] = '\0'; // Null-terminate the string
+                            // send(client_socket, file_content, bytes_read, 0); // Send the content
+                        }
+
                         fclose(file); // Close the file after reading
                     }
                     else
                     {
-                        fprintf(stderr, "Could not open file %s for reading\n", file_path);
+                        perror("Error opening file for reading");
                     }
                 }
-
                 // Format the file details
                 snprintf(message, sizeof(message), "\nFile:\n%s | Size: %lld bytes | Last Modified: %s\n",
                          entry->d_name, (long long)file_stat.st_size, ctime(&file_stat.st_mtime));
                 send(client_socket, message, strlen(message), 0);
             }
             closedir(dir);
-            if (!file_found)
-            {
-                snprintf(message, sizeof(message), "No files exist in the directory.\n");
-                send(client_socket, message, strlen(message), 0);
-            }
         }
         else
         {
-            // Custom error message
-            fprintf(stderr, "Could not open directory %s\n", client_dir);
+            perror("Could not open directory");
         }
         return;
     }
@@ -358,7 +353,7 @@ void *handle_client(void *arg)
     if (bytes_received > 0)
     {
         buffer[bytes_received] = '\0';
-        printf("Received command.txt path: %s\n", buffer);
+        printf("Received command: %s\n", buffer);
         process_file(buffer, client->client_socket, client->folder_path);
     }
     else if (bytes_received == 0)

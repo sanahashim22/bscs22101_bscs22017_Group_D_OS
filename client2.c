@@ -4,10 +4,12 @@
 #include <unistd.h>     // For close()
 #include <arpa/inet.h>  // For inet_addr() and htons()
 #include <sys/socket.h> // For socket(), connect(), send(), recv()
-#include <ctype.h>      // for isdigit()
+#include <ctype.h>   // for isdigit()
+
 
 #define PORT 8001
 #define BUFFER_SIZE 2048
+
 
 void encode_content(const char *input, char *output)
 {
@@ -33,6 +35,8 @@ void encode_content(const char *input, char *output)
 
     output[output_index] = '\0'; // Null-terminate the string
 }
+
+
 
 void decode_content(const char *input, char *output)
 {
@@ -61,14 +65,16 @@ void decode_content(const char *input, char *output)
         }
     }
 
-    // output[output_index] = '\0'; // Null-terminate the string
+    //output[output_index] = '\0'; // Null-terminate the string
 }
+
+
 
 int main()
 {
     int sock;
     struct sockaddr_in server;
-    char *message = "/home/haris/Desktop/OS/Codes/bscs22101_bscs22017_Group_D_OS-main/command.txt";
+    char *message = "/home/sana/Desktop/bscs22101_bscs22017_Group_D_Lab4/command.txt";
     char server_response[BUFFER_SIZE] = {0};
     char file_content[BUFFER_SIZE] = {0};
 
@@ -121,7 +127,7 @@ int main()
                 printf("Could not open file: %s\n", message);
                 return 0;
             }
-
+            char command[BUFFER_SIZE] = {0};
             char filename[BUFFER_SIZE] = {0};
             char path[BUFFER_SIZE] = "/"; // Default to root for checking disk space
             char filepath[BUFFER_SIZE] = {0};
@@ -129,7 +135,11 @@ int main()
             // Simple parsing, assuming JSON format {"command": "upload", "filename": "example.txt"}
             while (fgets(line, sizeof(line), file) != NULL)
             {
-                if (strstr(line, "\"filepath\":") != NULL)
+                if (strstr(line, "\"command\":") != NULL)
+                {
+                    sscanf(line, " \"command\": \"%[^\"]\"", command);
+                }
+                else if (strstr(line, "\"filepath\":") != NULL)
                 {
                     sscanf(line, " \"filepath\": \"%[^\"]\"", filepath);
                 }
@@ -152,7 +162,7 @@ int main()
                 char encoded_content[BUFFER_SIZE] = {0};
                 encode_content(file_content, encoded_content);
                 send(sock, encoded_content, strlen(encoded_content), 0);
-                // send(sock, file_content, bytes_read, 0);
+                //send(sock, file_content, bytes_read, 0);
             }
 
             fclose(file_to_send);
@@ -179,11 +189,6 @@ int main()
         {
             // Print the list of files with details (for "view" command)
             printf("Files in directory received from server:\n%s\n", server_response);
-        }
-        else if (strstr(server_response, "No files exist in the directory.") != NULL)
-        {
-            // Print the list of files with details (for "view" command)
-            printf("No Client Data\n");
         }
         else if (strstr(server_response, "Failure:") != NULL)
         {
