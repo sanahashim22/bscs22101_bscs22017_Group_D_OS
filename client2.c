@@ -273,7 +273,7 @@ void decode_content(const char *input, char *output) {
 int main() {
     int sock;
     struct sockaddr_in server;
-    char *message = "/home/sana/Desktop/bscs22101_bscs22017_Group_D_Lab4/command.txt";
+    char *message = "/home/sana-hashim/Desktop/bscs22101_bscs22017_Group_D_OS-main/command.txt";
     char server_response[BUFFER_SIZE] = {0};
     char file_content[BUFFER_SIZE] = {0};
 

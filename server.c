@@ -12,11 +12,131 @@
 #include <errno.h>
 #include <pthread.h>
 #include <ctype.h>
+#include <stdint.h>
 
 #define PORT 8001
 #define MINI_BUFFER_SIZE 512
 #define BUFFER_SIZE 1024
 #define FILE_PATH_BUFFER_SIZE 2048
+#define ARENA_SIZE (10 * 1024 * 1024) // 10MB
+#define ALIGNMENT 8 // Memory alignment
+
+// Structure for managing memory blocks
+typedef struct MemoryBlock {
+    size_t size;              // Size of the block
+    int is_free;              // Is the block free?
+    struct MemoryBlock *next; // Pointer to the next block
+} MemoryBlock;
+
+static void *arena = NULL;       // Memory arena
+static MemoryBlock *free_list = NULL; // List of free blocks
+pthread_mutex_t memory_mutex;    // Mutex for thread-safe memory operations
+
+// Helper function to align sizes
+size_t align_size(size_t size) {
+    return (size + (ALIGNMENT - 1)) & ~(ALIGNMENT - 1);
+}
+
+// Initialize the arena
+void initialize_arena() {
+    if (!arena) {
+        arena = malloc(ARENA_SIZE);
+        if (!arena) {
+            fprintf(stderr, "Failed to allocate memory arena.\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // Initialize the free list with a single large block
+        free_list = (MemoryBlock *)arena;
+        free_list->size = ARENA_SIZE - sizeof(MemoryBlock);
+        free_list->is_free = 1;
+        free_list->next = NULL;
+
+        pthread_mutex_init(&memory_mutex, NULL);
+        printf("Memory arena initialized with size: %d bytes\n", ARENA_SIZE);
+    }
+}
+void calculate_arena_space(size_t *used_space, size_t *free_space) {
+    *used_space = 0;
+    *free_space = 0;
+
+    MemoryBlock *current = (MemoryBlock *)arena;
+    while ((void *)current < (void *)((char *)arena + ARENA_SIZE)) {
+        if (current->is_free) {
+            *free_space += current->size;
+        } else {
+            *used_space += current->size;
+        }
+        if (!current->next) break;
+        current = current->next;
+    }
+}
+
+void print_arena_space() {
+    size_t used_space, free_space;
+    calculate_arena_space(&used_space, &free_space);
+    printf("Arena Space: Used = %zu bytes, Free = %zu bytes\n", used_space, free_space);
+}
+// Custom malloc implementation
+void *mymalloc(size_t size) {
+    pthread_mutex_lock(&memory_mutex);
+
+    size = align_size(size); // Align the requested size
+    MemoryBlock *current = free_list;
+    MemoryBlock *prev = NULL;
+
+    // Find a free block that fits the requested size
+    while (current && (!current->is_free || current->size < size)) {
+        prev = current;
+        current = current->next;
+    }
+
+    if (!current) {
+        pthread_mutex_unlock(&memory_mutex);
+        return NULL; // No suitable block found
+    }
+
+    // Split the block if there's enough space for another block
+    if (current->size > size + sizeof(MemoryBlock)) {
+        MemoryBlock *new_block = (MemoryBlock *)((char *)current + sizeof(MemoryBlock) + size);
+        new_block->size = current->size - size - sizeof(MemoryBlock);
+        new_block->is_free = 1;
+        new_block->next = current->next;
+
+        current->size = size;
+        current->next = new_block;
+    }
+
+    current->is_free = 0;
+    printf("\nAfter mymalloc: \n");
+    print_arena_space();
+    pthread_mutex_unlock(&memory_mutex);
+
+    return (char *)current + sizeof(MemoryBlock);
+}
+
+// Custom free implementation
+void myfree(void *ptr) {
+    if (!ptr) return;
+
+    pthread_mutex_lock(&memory_mutex);
+
+    MemoryBlock *block = (MemoryBlock *)((char *)ptr - sizeof(MemoryBlock));
+    block->is_free = 1;
+
+    // Merge adjacent free blocks
+    MemoryBlock *current = free_list;
+    while (current) {
+        if (current->is_free && current->next && current->next->is_free) {
+            current->size += sizeof(MemoryBlock) + current->next->size;
+            current->next = current->next->next;
+        }
+        current = current->next;
+    }
+    printf("\nAfter myfree: \n");
+    print_arena_space();
+    pthread_mutex_unlock(&memory_mutex);
+}
 
 // Structure to pass arguments to the thread function
 struct client_info {
@@ -101,7 +221,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
     }
 
     fclose(file);
-    snprintf(client_dir, sizeof(client_dir), "/home/sana/Desktop/bscs22101_bscs22017_Group_D_Lab4/%s", id);
+    snprintf(client_dir, sizeof(client_dir), "/home/sana-hashim/Desktop/bscs22101_bscs22017_Group_D_OS-main/%s", id);
 
     if (strcmp(command, "upload") == 0) {
         create_directory_if_not_exists(client_dir);
@@ -157,7 +277,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
 
         // Construct the full path to the file
         printf("client dir: %s\n", client_dir);
-        char full_file_path[FILE_PATH_BUFFER_SIZE] = "/home/sana/Desktop/bscs22101_bscs22017_Group_D_Lab4";
+        char full_file_path[FILE_PATH_BUFFER_SIZE] = "/home/sana-hashim/Desktop/bscs22101_bscs22017_Group_D_OS-main";
         snprintf(client_dir, sizeof(client_dir), "%s/%s/%s", full_file_path, id, filename);
 
         // Open the file
@@ -241,7 +361,7 @@ void *handle_client(void *arg) {
     if (bytes_received <= 0) {
         printf("Client disconnected or error receiving data.\n");
         close(client_socket);
-        free(info);
+        myfree(info);
         return NULL;
     }
 
@@ -252,7 +372,7 @@ void *handle_client(void *arg) {
 
     // Close the client socket
     close(client_socket);
-    free(info);
+    myfree(info);
     return NULL;
 }
 
@@ -261,6 +381,7 @@ int main() {
     int server_socket, client_socket;
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
+    initialize_arena();
 
     // Initialize mutex
     pthread_mutex_init(&mutex, NULL);
@@ -301,15 +422,15 @@ int main() {
         }
 
         // Allocate memory for client info
-        struct client_info *info = malloc(sizeof(struct client_info));
+        struct client_info *info = mymalloc(sizeof(struct client_info));
         info->client_socket = client_socket;
-        strncpy(info->folder_path, "/home/sana/Desktop/bscs22101_bscs22017_Group_D_Lab4", FILE_PATH_BUFFER_SIZE);
+        strncpy(info->folder_path, "/home/sana-hashim/Desktop/bscs22101_bscs22017_Group_D_OS-main", FILE_PATH_BUFFER_SIZE);
 
         // Create a new thread to handle the client
         pthread_t tid;
         if (pthread_create(&tid, NULL, handle_client, info) != 0) {
             perror("Thread creation failed");
-            free(info);
+            myfree(info);
             close(client_socket);
         }
     }
