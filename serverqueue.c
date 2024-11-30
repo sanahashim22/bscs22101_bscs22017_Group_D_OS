@@ -13,7 +13,7 @@
 #include <pthread.h>
 #include <ctype.h>
 #include <stdint.h>
-#include <semaphore.h>
+#include<semaphore.h>
 #define PORT 8001
 #define MINI_BUFFER_SIZE 512
 #define BUFFER_SIZE 1024
@@ -156,6 +156,8 @@ void myfree(void *ptr) {
 
 
 
+
+
 #define QUEUE_CAPACITY 10
 
 // Queue structure for file operations
@@ -249,27 +251,6 @@ void *file_handler(void *arg) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Structure to pass arguments to the thread function
 struct client_info {
     int client_socket;
@@ -308,6 +289,7 @@ void create_directory_if_not_exists(const char *path) {
     }
 }
 
+// Function to process the file based on the command
 void process_file(const char *file_path, int client_socket, const char *folder_path) {
     FILE *file = fopen(file_path, "r");
     char line[BUFFER_SIZE];
@@ -337,8 +319,13 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
             char *last_slash = strrchr(filepath, '/');
 
             if (last_slash != NULL) {
+                // Calculate the length of the directory path (excluding the file name)
                 size_t length = last_slash - filepath;
+
+                // Copy the directory part into dir_path
                 strncpy(filepath, filepath, length);
+
+                // Null-terminate the string
                 filepath[length] = '\0';
                 last_slash++;
                 strncpy(filename, last_slash, strlen(last_slash));
@@ -354,10 +341,7 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
         unsigned long long free_space = get_free_space(client_dir);
         printf("Free space on path %s: %llu bytes\n", client_dir, free_space);
 
-        if (free_space > 10000) {
-            char *operation_log = strdup("File upload initiated.");
-            enqueue(operation_log); // Log the upload initiation
-
+        if (free_space > 10000) { // Check if there is more than 10KB free space
             char success_message[] = "Success: Ready to receive file.";
             send(client_socket, success_message, strlen(success_message), 0);
 
@@ -366,45 +350,51 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
                 return;
             }
 
+            // Open the new file where content will be written
             FILE *new_file = fopen(client_dir, "wb");
             if (new_file == NULL) {
                 printf("Could not create file: %s\n", client_dir);
                 return;
             }
 
+            // Receive file content in chunks from the client
             char file_content[BUFFER_SIZE] = {0};
             int bytes_received;
 
+            // Lock mutex before receiving file content
             pthread_mutex_lock(&mutex);
+
+            // Loop to receive file content in chunks
             while ((bytes_received = recv(client_socket, file_content, sizeof(file_content), 0)) > 0) {
                 fwrite(file_content, 1, bytes_received, new_file);
             }
+
+            // Unlock mutex after file operations
             pthread_mutex_unlock(&mutex);
 
+            // Close the file after all data is received
             fclose(new_file);
             printf("File '%s' uploaded successfully to directory: %s\n", filename, client_dir);
 
-            operation_log = strdup("File upload completed successfully.");
-            enqueue(operation_log); // Log successful upload
         } else {
             char failure_message[] = "Failure: Not enough disk space.";
             send(client_socket, failure_message, strlen(failure_message), 0);
             printf("Not enough disk space for file: %s\n", filename);
-
-            char *operation_log = strdup("File upload failed due to insufficient disk space.");
-            enqueue(operation_log); // Log upload failure
         }
+
         return;
     } else if (strcmp(command, "download") == 0) {
         char file_content[BUFFER_SIZE];
         FILE *file_to_send;
         int bytes_read;
 
+        // Construct the full path to the file
         printf("client dir: %s\n", client_dir);
         char full_file_path[FILE_PATH_BUFFER_SIZE] = "/home/sana-hashim/Desktop/bscs22101_bscs22017_Group_D_OS-main";
         snprintf(client_dir, sizeof(client_dir), "%s/%s/%s", full_file_path, id, filename);
 
-        file_to_send = fopen(client_dir, "rb");
+        // Open the file
+        file_to_send = fopen(client_dir, "rb"); // Use "rb" for reading binary files
         if (file_to_send == NULL) {
             char failure_message[] = "Failure: File not found.";
             send(client_socket, failure_message, strlen(failure_message), 0);
@@ -412,50 +402,57 @@ void process_file(const char *file_path, int client_socket, const char *folder_p
             return;
         }
 
-        char *operation_log = strdup("File download initiated.");
-        enqueue(operation_log); // Log download initiation
-
         char success_message[BUFFER_SIZE] = "File content: ";
         send(client_socket, success_message, strlen(success_message), 0);
 
+        // Lock mutex before sending file content
         pthread_mutex_lock(&mutex);
+
+        // Send the file content to the client
         while ((bytes_read = fread(file_content, 1, sizeof(file_content), file_to_send)) > 0) {
             send(client_socket, file_content, bytes_read, 0);
         }
+
+        // Unlock mutex after file operations
         pthread_mutex_unlock(&mutex);
 
         fclose(file_to_send);
         printf("File '%s' sent to client from directory '%s'.\n", filename, client_dir);
-
-        operation_log = strdup("File download completed successfully.");
-        enqueue(operation_log); // Log download completion
         return;
     } else if (strcmp(command, "view") == 0) {
         DIR *dir;
         struct dirent *entry;
         struct stat file_stat;
         char file_path[FILE_PATH_BUFFER_SIZE * 4];
-        char message[BUFFER_SIZE * 2];
+        char message[BUFFER_SIZE * 2]; // Larger buffer for sending details
 
+        // Open the directory
         if ((dir = opendir(client_dir)) != NULL) {
-            char *operation_log = strdup("Directory view operation initiated.");
-            enqueue(operation_log); // Log directory view
-
+            // Lock mutex before accessing the directory
             pthread_mutex_lock(&mutex);
+
+            // Loop through the files in the directory
             while ((entry = readdir(dir)) != NULL) {
+                // Skip "." and ".."
                 if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                     continue;
                 }
 
+                // Construct the full path to the file
                 snprintf(file_path, sizeof(file_path), "%s/%s", client_dir, entry->d_name);
+
+                // Get file stats (size, modification time)
                 if (stat(file_path, &file_stat) == 0) {
+                    // Format the file details
                     snprintf(message, sizeof(message), "File: %s | Size: %ld bytes | Last modified: %s\n", entry->d_name, (long)file_stat.st_size, ctime(&file_stat.st_mtime));
                     send(client_socket, message, strlen(message), 0);
                 }
             }
+
+            // Unlock mutex after accessing the directory
             pthread_mutex_unlock(&mutex);
 
-            closedir(dir);
+            closedir(dir); // Close the directory
         } else {
             perror("Error opening directory for reading");
         }
@@ -498,9 +495,6 @@ int main() {
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
     initialize_arena();
-    init_queue();
-    pthread_t file_handler_thread;
-    
 
     // Initialize mutex
     pthread_mutex_init(&mutex, NULL);
@@ -547,7 +541,7 @@ int main() {
 
         // Create a new thread to handle the client
         pthread_t tid;
-        if (pthread_create(&file_handler_thread, NULL, file_handler, NULL)){
+        if (pthread_create(&tid, NULL, handle_client, info) != 0) {
             perror("Thread creation failed");
             myfree(info);
             close(client_socket);
